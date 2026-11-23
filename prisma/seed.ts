@@ -42,7 +42,7 @@ const reviews: SeedReview[] = [
     ai: {
       sentiment: "POSITIVE",
       status: "APPROVED",
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: "gemini-3.8-flash",
       draftReply:
         "Thank you, Noora! We're delighted you enjoyed the view and your flat white. We look forward to welcoming you back to the marina soon.",
     },
@@ -58,7 +58,7 @@ const reviews: SeedReview[] = [
     ai: {
       sentiment: "NEGATIVE",
       status: "DRAFT",
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: "gemini-3.8-flash",
       draftReply:
         "We're sorry about the long wait, James, and that no one acknowledged it. This isn't the standard we aim for. We've shared your feedback with the team and would welcome the chance to make it right.",
     },
@@ -74,7 +74,7 @@ const reviews: SeedReview[] = [
     ai: {
       sentiment: "POSITIVE",
       status: "DRAFT",
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: "gemini-3.8-flash",
       draftReply:
         "Thank you, Fatima! Glad the pour-over hit the mark. We're working on more seating for busy hours and hope to see you again.",
     },
@@ -110,7 +110,7 @@ const reviews: SeedReview[] = [
       urgencyReason:
         "Possible food-safety incident (illness reported after meal); escalate to management immediately.",
       status: "DRAFT",
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: "gemini-3.8-flash",
       draftReply:
         "Omar, we are very sorry to hear you were unwell. We take this extremely seriously and our manager will contact you directly to learn more. Please reach out to us so we can investigate.",
     },
@@ -126,7 +126,7 @@ const reviews: SeedReview[] = [
     ai: {
       sentiment: "POSITIVE",
       status: "APPROVED",
-      modelUsed: "gemini-2.5-flash",
+      modelUsed: "gemini-3.8-flash",
       draftReply:
         "Thank you, Layla! We're thrilled you loved the mezze and the courtyard evenings. See you again soon!",
     },

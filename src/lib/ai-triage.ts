@@ -102,7 +102,7 @@ async function callGemini(ai: GoogleGenAI, model: string, input: CreateReviewInp
   return { ...parsed.data, status: "DRAFT", modelUsed: model };
 }
 
-const FALLBACK_MODEL = "gemini-3.8-flash-lite";
+const FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"] as const;
 
 async function callWithRetry(ai: GoogleGenAI, model: string, input: CreateReviewInput): Promise<TriageResult> {
   try {
@@ -119,7 +119,7 @@ export async function generateReviewTriage(input: CreateReviewInput): Promise<Tr
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return buildFallbackTriage(input);
 
-  const candidates = [...new Set([process.env.GEMINI_MODEL || "gemini-3.8-flash", FALLBACK_MODEL])];
+  const candidates = [...new Set([process.env.GEMINI_MODEL || "gemini-3.8-flash", ...FALLBACK_MODELS])];
   const ai = new GoogleGenAI({ apiKey });
 
   for (const model of candidates) {
