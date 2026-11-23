@@ -48,6 +48,21 @@ describe("generateReviewTriage", () => {
     expect(generateContent).toHaveBeenCalledTimes(1);
   });
 
+  it("includes the location name in the prompt and system instruction", async () => {
+    generateContent.mockResolvedValueOnce({ text: validJson });
+    await generateReviewTriage({ ...input, customerName: "Sam" }, "Brew Lab");
+    const call = generateContent.mock.calls[0]![0];
+    expect(call.contents).toContain("Location: Brew Lab");
+    expect(call.contents).toContain("Customer name: Sam");
+    expect(call.config.systemInstruction).toContain("on behalf of Brew Lab");
+  });
+
+  it("falls back to 'our team' in the system instruction without a location name", async () => {
+    generateContent.mockResolvedValueOnce({ text: validJson });
+    await generateReviewTriage(input);
+    expect(generateContent.mock.calls[0]![0].config.systemInstruction).toContain("on behalf of our team");
+  });
+
   it("recovers from a single 503 via retry", async () => {
     generateContent.mockRejectedValueOnce(httpError(503)).mockResolvedValueOnce({ text: validJson });
     const result = await runWithRetryDelay();
@@ -172,6 +187,13 @@ describe("buildFallbackTriage", () => {
     const result = buildFallbackTriage(make(2, { comment: "Slow service" }));
     expect(result.isUrgent).toBe(false);
     expect(result.urgencyReason).toBeNull();
+  });
+
+  it("personalizes the fallback reply and avoids banned cliches", () => {
+    const result = buildFallbackTriage(make(1, { customerName: "Sam" }), "Brew Lab");
+    expect(result.draftReply).toContain("Sam");
+    expect(result.draftReply).toContain("Brew Lab");
+    expect(result.draftReply).not.toMatch(/fell short of expectations|unacceptable incident|feedback is important to us/i);
   });
 
   it("marks results as FALLBACK / fallback-template", () => {

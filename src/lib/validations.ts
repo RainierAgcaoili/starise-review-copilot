@@ -17,10 +17,23 @@ export const createReviewSchema = z.object({
 });
 
 export const aiTriageSchema = z.object({
-  sentiment: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]),
-  isUrgent: z.boolean(),
-  urgencyReason: z.string().nullable(),
-  draftReply: z.string().min(1).max(800),
+  sentiment: z
+    .enum(["POSITIVE", "NEUTRAL", "NEGATIVE"])
+    .describe("Overall sentiment of the review, judged from the comment, tags and rating."),
+  isUrgent: z
+    .boolean()
+    .describe("True if the review mentions hygiene, food safety, allergens, staff misconduct, or a severe service failure."),
+  urgencyReason: z
+    .string()
+    .nullable()
+    .describe("Concise reason the review is urgent; null when isUrgent is false."),
+  draftReply: z
+    .string()
+    .min(1)
+    .max(800)
+    .describe(
+      "Concise 2-3 sentence reply that greets the guest by name when provided, explicitly references at least one concrete detail from the review comment or tags, and signs off on behalf of the venue. No refund, comp, or discount promises.",
+    ),
 });
 
 export const updateReplySchema = z.object({

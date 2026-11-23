@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Location not found" }, { status: 404 });
   }
 
-  const triage = await generateReviewTriage(input);
+  const triage = await generateReviewTriage(input, location.name);
 
   const review = await prisma.$transaction(async (tx) => {
     const created = await tx.review.create({

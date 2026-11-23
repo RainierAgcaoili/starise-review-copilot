@@ -65,12 +65,16 @@ describe("POST /api/reviews", () => {
   });
 
   it("returns 201 and persists review + AI response", async () => {
-    mocks.prisma.location.findUnique.mockResolvedValue({ id: "loc_1" });
+    mocks.prisma.location.findUnique.mockResolvedValue({ id: "loc_1", name: "Brew Lab" });
     mocks.tx.review.create.mockResolvedValue({ id: "rev_1", ...valid });
     mocks.tx.aIResponse.create.mockResolvedValue({ id: "ai_1", reviewId: "rev_1", ...triage });
 
     const res = await POST(jsonRequest("http://localhost/api/reviews", "POST", valid));
     expect(res.status).toBe(201);
+    expect(mocks.generateReviewTriage).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: "loc_1" }),
+      "Brew Lab",
+    );
     const json = await res.json();
     expect(json.id).toBe("rev_1");
     expect(json.aiResponse.status).toBe("DRAFT");
