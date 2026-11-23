@@ -19,6 +19,8 @@ async function ReviewLoader({ searchParams }: { searchParams: Promise<Record<str
   );
 }
 
+export const dynamic = "force-dynamic";
+
 function FormSkeleton() {
   return (
     <div

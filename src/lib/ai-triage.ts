@@ -102,28 +102,32 @@ async function callGemini(ai: GoogleGenAI, model: string, input: CreateReviewInp
   return { ...parsed.data, status: "DRAFT", modelUsed: model };
 }
 
+const FALLBACK_MODEL = "gemini-3.8-flash-lite";
+
+async function callWithRetry(ai: GoogleGenAI, model: string, input: CreateReviewInput): Promise<TriageResult> {
+  try {
+    return await callGemini(ai, model, input);
+  } catch (err) {
+    if (!isTransientError(err)) throw err;
+    console.warn(`[ai-triage] Transient Gemini error (${err.status}) on model=${model}, retrying once`);
+    await sleep(RETRY_DELAY_MS);
+    return await callGemini(ai, model, input);
+  }
+}
+
 export async function generateReviewTriage(input: CreateReviewInput): Promise<TriageResult> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return buildFallbackTriage(input);
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const candidates = [...new Set([process.env.GEMINI_MODEL || "gemini-3.8-flash", FALLBACK_MODEL])];
   const ai = new GoogleGenAI({ apiKey });
 
-  try {
+  for (const model of candidates) {
     try {
-      return await callGemini(ai, model, input);
+      return await callWithRetry(ai, model, input);
     } catch (err) {
-      if (!isTransientError(err)) throw err;
-      console.warn(`[ai-triage] Transient Gemini error (${err.status}), retrying once`);
-      await sleep(RETRY_DELAY_MS);
-      return await callGemini(ai, model, input);
+      console.error(`[ai-triage] model=${model} failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  } catch (err) {
-    if (err instanceof OutputValidationError) {
-      console.error(`[ai-triage] LLM output failed validation (model: ${model}, issues: ${err.issueCount})`);
-    } else {
-      console.error("[ai-triage] Gemini call failed, falling back:", err instanceof Error ? err.message : String(err));
-    }
-    return buildFallbackTriage(input);
   }
+  return buildFallbackTriage(input);
 }

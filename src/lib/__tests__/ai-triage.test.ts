@@ -33,10 +33,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-async function runWithRetryDelay() {
+async function runWithRetryDelay(ms = 750) {
   vi.useFakeTimers();
   const promise = generateReviewTriage(input);
-  await vi.advanceTimersByTimeAsync(750);
+  await vi.advanceTimersByTimeAsync(ms);
   return promise;
 }
 
@@ -62,32 +62,55 @@ describe("generateReviewTriage", () => {
     expect(generateContent).toHaveBeenCalledTimes(2);
   });
 
-  it("falls back after two transient failures", async () => {
-    generateContent.mockRejectedValue(httpError(503));
+  it("fails over to flash-lite after the primary model returns 503 twice", async () => {
+    generateContent
+      .mockRejectedValueOnce(httpError(503))
+      .mockRejectedValueOnce(httpError(503))
+      .mockResolvedValueOnce({ text: validJson });
     const result = await runWithRetryDelay();
-    expect(result).toMatchObject({ status: "FALLBACK", modelUsed: "fallback-template" });
-    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-3.8-flash-lite" });
+    expect(generateContent).toHaveBeenCalledTimes(3);
+    expect(generateContent.mock.calls.map((c) => c[0].model)).toEqual([
+      "gemini-3.8-flash",
+      "gemini-3.8-flash",
+      "gemini-3.8-flash-lite",
+    ]);
   });
 
-  it("does not retry non-transient errors", async () => {
+  it("falls back to the template when all models fail", async () => {
+    generateContent.mockRejectedValue(httpError(503));
+    const result = await runWithRetryDelay(1500);
+    expect(result).toMatchObject({ status: "FALLBACK", modelUsed: "fallback-template" });
+    expect(generateContent).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not duplicate the model when GEMINI_MODEL equals the failover model", async () => {
+    vi.stubEnv("GEMINI_MODEL", "gemini-3.8-flash-lite");
     generateContent.mockRejectedValue(httpError(400));
     const result = await generateReviewTriage(input);
     expect(result.status).toBe("FALLBACK");
     expect(generateContent).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry non-transient errors", async () => {
+    generateContent.mockRejectedValue(httpError(400));
+    const result = await generateReviewTriage(input);
+    expect(result.status).toBe("FALLBACK");
+    expect(generateContent).toHaveBeenCalledTimes(2);
+  });
+
   it("falls back on malformed JSON without throwing", async () => {
-    generateContent.mockResolvedValueOnce({ text: "not json {" });
+    generateContent.mockResolvedValue({ text: "not json {" });
     const result = await generateReviewTriage(input);
     expect(result).toMatchObject({ status: "FALLBACK", modelUsed: "fallback-template" });
-    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent).toHaveBeenCalledTimes(2);
   });
 
   it("falls back on schema validation failure without retrying", async () => {
-    generateContent.mockResolvedValueOnce({ text: JSON.stringify({ sentiment: "MIXED" }) });
+    generateContent.mockResolvedValue({ text: JSON.stringify({ sentiment: "MIXED" }) });
     const result = await generateReviewTriage(input);
     expect(result.status).toBe("FALLBACK");
-    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(generateContent).toHaveBeenCalledTimes(2);
   });
 
   it("falls back without calling Gemini when no API key is set", async () => {
