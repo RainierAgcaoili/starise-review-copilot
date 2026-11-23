@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Starise AI Review & Reputation Copilot
 
-## Getting Started
+Full-stack hospitality review collection (<30s mobile flow) with a human-in-the-loop AI triage and reply copilot. Customers leave a rating, tags, and an optional comment; Gemini classifies sentiment, flags urgent issues, and drafts a manager reply that a human approves before it is used.
 
-First, run the development server:
+## Architecture & Data Flow
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+ Customer Mobile UI (/)
+          |  POST /api/reviews
+          v
+ Next.js Route Handlers (/api/*)
+   Zod-validated payloads (src/lib/validations.ts)
+          |
+          +--> Gemini Structured Output Pipeline (src/lib/ai-triage.ts)
+          |      @google/genai + responseJsonSchema: z.toJSONSchema(aiTriageSchema)
+          |      -> Zod safeParse of LLM JSON -> DRAFT
+          |      -> on timeout / error / invalid output -> FALLBACK
+          |
+          +--> Prisma v7 (@prisma/adapter-neon) + Neon PostgreSQL
+          |      review + aiResponse written in one transaction
+          v
+ Manager Dashboard (/dashboard)
+   triage, edit, and approve replies via PATCH /api/reviews/[id]/reply
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Reliability & AI Guardrails
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Strict TypeScript:** `strict` and `noUncheckedIndexedAccess` enabled.
+- **Validation everywhere:** every request body and every LLM JSON response is parsed with a Zod schema; raw model output is never trusted.
+- **Prompt injection defense:** customer text is wrapped in `<customer_review>` XML tags, `<` / `>` are escaped, and the system instruction tells the model to treat the content strictly as data.
+- **Bounded latency:** 15s deadline per Gemini call, plus a single retry (750ms backoff) on `429` / `503` only.
+- **Graceful fallback:** on any failure (missing key, timeout, API error, schema violation) a deterministic triage is used (rating-based sentiment, urgent-keyword matching, template reply) and stored with status `FALLBACK`, so review writes never fail.
+- **Human-in-the-loop:** AI replies are stored as `DRAFT`; nothing is `APPROVED` until a manager edits/approves it via the API.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## REST API Reference
 
-## Learn More
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/locations` | Locations with `reviewCount` and `averageRating` |
+| `GET` | `/api/reviews` | Reviews with location and AI response; query: `locationId`, `urgentOnly=true` |
+| `POST` | `/api/reviews` | Create review `{ locationId, rating 1-5, tags[], comment?, customerName? }`; runs triage; `201` / `400` / `404` |
+| `PATCH` | `/api/reviews/[id]/reply` | Update reply `{ draftReply, status: "DRAFT" \| "APPROVED" }`; `200` / `400` / `404` |
 
-To learn more about Next.js, take a look at the following resources:
+## Local Development, Testing & Docker
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp .env.example .env        # set DATABASE_URL, GEMINI_API_KEY, GEMINI_MODEL
+npm install                 # postinstall runs `prisma generate`
+npm run db:push             # sync schema to Neon
+npm run db:seed             # seed locations/reviews
+npm run dev                 # http://localhost:3000
+npm test                    # vitest
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+docker build -t starise-review-copilot .
+docker run --env-file .env -p 3000:3000 starise-review-copilot
+```
 
-## Deploy on Vercel
+## Deploying to Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Set `DATABASE_URL` and `GEMINI_API_KEY` (optionally `GEMINI_MODEL`) as project environment variables. `postinstall` and `build` both run `prisma generate`, so no extra build config is needed.
