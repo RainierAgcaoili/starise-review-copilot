@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const generateContent = vi.hoisted(() => vi.fn());
 
 vi.mock("@google/genai", () => ({
+  ThinkingLevel: { LOW: "LOW" },
   GoogleGenAI: class {
     models = { generateContent };
   },
 }));
 
+import { ThinkingLevel } from "@google/genai";
 import { buildFallbackTriage, generateReviewTriage } from "@/lib/ai-triage";
 import type { CreateReviewInput } from "@/lib/validations";
 
@@ -44,8 +46,14 @@ describe("generateReviewTriage", () => {
   it("returns a DRAFT for valid structured JSON", async () => {
     generateContent.mockResolvedValueOnce({ text: validJson });
     const result = await generateReviewTriage(input);
-    expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-3.8-flash", sentiment: "POSITIVE" });
+    expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-4-hydrogen", sentiment: "POSITIVE" });
     expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes ThinkingLevel.LOW in the request config", async () => {
+    generateContent.mockResolvedValueOnce({ text: validJson });
+    await generateReviewTriage(input);
+    expect(generateContent.mock.calls[0]![0].config.thinkingConfig).toEqual({ thinkingLevel: ThinkingLevel.LOW });
   });
 
   it("includes the location name in the prompt and system instruction", async () => {
@@ -77,17 +85,17 @@ describe("generateReviewTriage", () => {
     expect(generateContent).toHaveBeenCalledTimes(2);
   });
 
-  it("fails over to gemini-3.6-flash after the primary model returns 503 twice", async () => {
+  it("fails over to gemini-3.1-flash-lite after the primary model returns 503 twice", async () => {
     generateContent
       .mockRejectedValueOnce(httpError(503))
       .mockRejectedValueOnce(httpError(503))
       .mockResolvedValueOnce({ text: validJson });
     const result = await runWithRetryDelay();
-    expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-3.6-flash" });
+    expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-3.1-flash-lite" });
     expect(generateContent.mock.calls.map((c) => c[0].model)).toEqual([
-      "gemini-3.8-flash",
-      "gemini-3.8-flash",
-      "gemini-3.6-flash",
+      "gemini-4-hydrogen",
+      "gemini-4-hydrogen",
+      "gemini-3.1-flash-lite",
     ]);
   });
 
@@ -99,8 +107,8 @@ describe("generateReviewTriage", () => {
     const result = await generateReviewTriage(input);
     expect(result).toMatchObject({ status: "DRAFT", modelUsed: "gemini-3.5-flash-lite" });
     expect(generateContent.mock.calls.map((c) => c[0].model)).toEqual([
-      "gemini-3.8-flash",
-      "gemini-3.6-flash",
+      "gemini-4-hydrogen",
+      "gemini-3.1-flash-lite",
       "gemini-3.5-flash-lite",
     ]);
   });
@@ -113,11 +121,11 @@ describe("generateReviewTriage", () => {
   });
 
   it("does not duplicate the model when GEMINI_MODEL equals a failover model", async () => {
-    vi.stubEnv("GEMINI_MODEL", "gemini-3.6-flash");
+    vi.stubEnv("GEMINI_MODEL", "gemini-3.1-flash-lite");
     generateContent.mockRejectedValue(httpError(400));
     const result = await generateReviewTriage(input);
     expect(result.status).toBe("FALLBACK");
-    expect(generateContent.mock.calls.map((c) => c[0].model)).toEqual(["gemini-3.6-flash", "gemini-3.5-flash-lite"]);
+    expect(generateContent.mock.calls.map((c) => c[0].model)).toEqual(["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]);
   });
 
   it("does not retry non-transient errors", async () => {

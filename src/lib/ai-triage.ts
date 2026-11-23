@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import { aiTriageSchema, type AiTriage, type CreateReviewInput } from "@/lib/validations";
 
@@ -111,6 +111,7 @@ async function callGemini(
       responseMimeType: "application/json",
       responseJsonSchema: z.toJSONSchema(aiTriageSchema),
       temperature: 0.3,
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       abortSignal: AbortSignal.timeout(TIMEOUT_MS),
       httpOptions: { timeout: TIMEOUT_MS },
     },
@@ -121,7 +122,7 @@ async function callGemini(
   return { ...parsed.data, status: "DRAFT", modelUsed: model };
 }
 
-const FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"] as const;
+const FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"] as const;
 
 async function callWithRetry(
   ai: GoogleGenAI,
@@ -143,7 +144,7 @@ export async function generateReviewTriage(input: CreateReviewInput, locationNam
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return buildFallbackTriage(input, locationName);
 
-  const candidates = [...new Set([process.env.GEMINI_MODEL || "gemini-3.8-flash", ...FALLBACK_MODELS])];
+  const candidates = [...new Set([process.env.GEMINI_MODEL || "gemini-4-hydrogen", ...FALLBACK_MODELS])];
   const ai = new GoogleGenAI({ apiKey });
 
   for (const model of candidates) {
