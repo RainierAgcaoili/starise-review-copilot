@@ -1,0 +1,63 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum ReplyStatus {
+  DRAFT
+  APPROVED
+  FALLBACK
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  city      String
+  createdAt DateTime @default(now())
+  reviews   Review[]
+}
+
+model Review {
+  id           String      @id @default(cuid())
+  locationId   String
+  /// Valid range 1-5; enforced by Zod at the API boundary (no DB check constraint).
+  rating       Int
+  tags         String[]
+  comment      String?
+  customerName String?
+  createdAt    DateTime    @default(now())
+  location     Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  aiResponse   AIResponse?
+
+  @@index([locationId, createdAt])
+}
+
+model AIResponse {
+  id            String      @id @default(cuid())
+  reviewId      String      @unique
+  sentiment     Sentiment
+  isUrgent      Boolean     @default(false)
+  urgencyReason String?
+  draftReply    String
+  status        ReplyStatus
+  modelUsed     String
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  review        Review      @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
