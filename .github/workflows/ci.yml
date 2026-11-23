@@ -6,12 +6,13 @@ on:
   pull_request:
     branches: [main, master]
 
+env:
+  DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+  GEMINI_API_KEY: "placeholder-gemini-key"
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
-      GEMINI_API_KEY: placeholder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
